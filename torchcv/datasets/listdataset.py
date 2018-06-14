@@ -9,7 +9,8 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 
 from PIL import Image
-
+import json
+import numpy as np
 
 class ListDataset(data.Dataset):
     '''Load image/labels/boxes from a list file.
@@ -17,7 +18,7 @@ class ListDataset(data.Dataset):
     The list file is like:
       a.jpg xmin ymin xmax ymax label xmin ymin xmax ymax label ...
     '''
-    def __init__(self, root, list_file, transform=None):
+    def __init__(self, root, list_file, transform=None, is_valid=False):
         '''
         Args:
           root: (str) ditectory to images.
@@ -30,32 +31,32 @@ class ListDataset(data.Dataset):
         self.fnames = []
         self.boxes = []
         self.labels = []
+        self.classes = ["articulated_truck", "bicycle", "bus", "car", "motorcycle", 'motorized_vehicle', "non-motorized_vehicle",
+                        "pedestrian", "pickup_truck", "single_unit_truck", "work_van"]
 
-        if isinstance(list_file, list):
-            # Cat multiple list files together.
-            # This is especially useful for voc07/voc12 combination.
-            tmp_file = '/tmp/listfile.txt'
-            os.system('cat %s > %s' % (' '.join(list_file), tmp_file))
-            list_file = tmp_file
-
-        with open(list_file) as f:
-            lines = f.readlines()
-            self.num_imgs = len(lines)
-
-        for line in lines:
-            splited = line.strip().split()
-            self.fnames.append(splited[0])
-            num_boxes = (len(splited) - 1) // 5
+        data = json.load(open(list_file, 'r'))
+        # v is [mio_id,items] we do not use mio_id yet.
+        # data = [(pjoin(self.filepath, 'images', k+'.jpg'), v[1]) for k, v in data.items()]
+        items = list(data.items())
+        np.random.seed(300)
+        np.random.shuffle(items)
+        if is_valid:
+            items = items[int(0.9 * len(items)):]
+        else:
+            items = items[:int(0.9 * len(items))]
+        self.num_samples = len(items)
+        for k, [_, vals] in items:
+            self.fnames.append(k + '.jpg')
             box = []
             label = []
-            for i in range(num_boxes):
-                xmin = splited[1+5*i]
-                ymin = splited[2+5*i]
-                xmax = splited[3+5*i]
-                ymax = splited[4+5*i]
-                c = splited[5+5*i]
-                box.append([float(xmin),float(ymin),float(xmax),float(ymax)])
-                label.append(int(c))
+            ori = []
+            parked = []
+            for b in vals:
+                # float(xmin), float(ymin), float(xmax), float(ymax)
+                box.append([float(b['xmin']), float(b['ymin']), float(b['xmax']), float(b['ymax'])])
+                label.append(self.classes.index(normalize_classes(b['class'])))
+                ori.append(float(b['angle']) / (np.pi * 2))
+                parked.append(int(float(b['mag']) < 1))
             self.boxes.append(torch.Tensor(box))
             self.labels.append(torch.LongTensor(label))
 
@@ -84,4 +85,20 @@ class ListDataset(data.Dataset):
         return img, boxes, labels
 
     def __len__(self):
-        return self.num_imgs
+        return self.num_samples
+
+def normalize_classes(cls):
+    cls = cls.lower()
+    dat = {'pickup truck': 'pickup_truck',
+           'pickuptruck': 'pickup_truck',
+           'articulated truck': 'articulated_truck',
+           'articulatedtruck': 'articulated_truck',
+           'non-motorized vehicle': 'non-motorized_vehicle',
+           'non-motorizedvehicle': 'non-motorized_vehicle',
+           'nonmotorizedvehicle': 'non-motorized_vehicle',
+           'motorized vehicle': 'motorized_vehicle',
+           'motorizedvehicle': 'motorized_vehicle',
+           'single unit truck': 'single_unit_truck',
+           'singleunittruck': 'single_unit_truck',
+           'work van': 'work_van', 'suv': 'car', 'minivan': 'car', 'workvan': 'work_van'}
+    return dat[cls] if cls in dat else cls
