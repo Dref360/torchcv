@@ -251,4 +251,4 @@ def test():
     loc_preds, cls_preds = net(Variable(torch.randn(1,3,300,300)))
     print(loc_preds.size(), cls_preds.size())
 
-test()
+#test()
