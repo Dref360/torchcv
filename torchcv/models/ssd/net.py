@@ -117,7 +117,6 @@ class SSD300(nn.Module):
         self.num_classes = num_classes
         self.num_anchors = (4, 6, 6, 6, 4, 4)
         self.in_channels = (512, 1024, 512, 256, 256, 256)
-
         self.extractor = VGG16Extractor300()
         self.loc_layers = nn.ModuleList()
         self.cls_layers = nn.ModuleList()
@@ -252,4 +251,4 @@ def test():
     loc_preds, cls_preds = net(Variable(torch.randn(1,3,300,300)))
     print(loc_preds.size(), cls_preds.size())
 
-# test()
+test()

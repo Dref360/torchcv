@@ -20,15 +20,18 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='PyTorch SSD Training')
 parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
-parser.add_argument('--model', default='./examples/ssd/model/ssd300_vgg16.pth', type=str, help='initialized model path')
+parser.add_argument('--model', default='{}/ssd300_vgg16.pth'.format(os.path.dirname(__file__)), type=str, help='initialized model path')
 parser.add_argument('--checkpoint', default='./examples/ssd/checkpoint/ckpt.pth', type=str, help='checkpoint path')
 args = parser.parse_args()
 
 # Model
+
 print('==> Building model..')
 net = SSD300(num_classes=11 + 1)
 # net = FPNSSD512(num_classes=21)
-net.load_state_dict(torch.load(args.model))
+state_dict = torch.load(args.model)
+state_dict = {'extractor.'+k.replace('features', 'features.layers'):v for k,v in state_dict.items()}
+net.load_state_dict(state_dict, strict=False)
 best_loss = float('inf')  # best test loss
 start_epoch = 0  # start from epoch 0 or last epoch
 if args.resume:
